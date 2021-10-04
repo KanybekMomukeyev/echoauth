@@ -70,7 +70,31 @@ func accessible(c echo.Context) error {
 	return c.String(http.StatusOK, "Accessible")
 }
 
-func restricted(c echo.Context) error {
+func restricted1(c echo.Context) error {
+	// --------- UNUSED STARTS --------- //
+	m := make(map[string]string)
+	if err := c.Bind(&m); err != nil {
+		return err
+	}
+	jsonValue, _ := json.Marshal(m)
+	fmt.Printf("\n\n RESTRICTED REQ BODY JSON VALUE: %v\n", string(jsonValue))
+	fmt.Printf("\n\n RESTRICTED REQ BODY MAP VALUE: %v\n", m)
+	// -------------------------------- //
+
+	user := c.Get("user").(*jwt.Token)
+	fmt.Printf("\n\n USER: %v\n\n", user)
+
+	claims := user.Claims.(*jwtCustomClaims)
+	fmt.Printf("\n\n CLAIMS: %v\n\n", claims)
+
+	name := claims.Name
+	uddid := claims.UUID
+	fmt.Printf("\n\n %v %v\n\n", name, uddid)
+
+	return c.JSON(http.StatusOK, claims)
+}
+
+func restricted2(c echo.Context) error {
 	// --------- UNUSED STARTS --------- //
 	m := make(map[string]string)
 	if err := c.Bind(&m); err != nil {
@@ -101,17 +125,21 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 
-	e.POST("/login", login)
-	e.GET("/", accessible)
+	publicRoutes := e.Group("/v1")
+	{
+		publicRoutes.POST("/login", login)
+		publicRoutes.GET("/", accessible)
+	}
 
-	r := e.Group("/restricted")
+	protectedRoutes := e.Group("/v1")
 	{
 		config := middleware.JWTConfig{
 			Claims:     &jwtCustomClaims{},
 			SigningKey: []byte(secretSigningKey),
 		}
-		r.Use(middleware.JWTWithConfig(config))
-		r.POST("", restricted)
+		protectedRoutes.Use(middleware.JWTWithConfig(config))
+		protectedRoutes.POST("/restricted1", restricted1)
+		protectedRoutes.POST("/restricted2", restricted2)
 	}
 
 	e.Logger.Fatal(e.Start(":1111"))
